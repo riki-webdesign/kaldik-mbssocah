@@ -1,0 +1,6 @@
+{
+  "name": "Kaldik Santri (kalender Kegiatan SMP MODERN BOARDING SCHOOL (MBS) SOCAH)",
+  "description": "Sistem Kalender Pendidikan dan Agenda Kegiatan Santri Pondok Pesantren Babusalam Socah",
+  "requestFramePermissions": ["notifications"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

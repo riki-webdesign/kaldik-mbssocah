@@ -1,0 +1,78 @@
+{
+  "entities": {
+    "events": {
+      "title": "Agenda Event",
+      "description": "Jadwal dan agenda kegiatan santri, sekolah formal, ibadah, dan asrama",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "location": { "type": "string" },
+        "description": { "type": "string" },
+        "allDay": { "type": "boolean" },
+        "speakerOrTeacher": { "type": "string" },
+        "isDone": { "type": "boolean" }
+      },
+      "rules": "Public read, write allowed"
+    },
+    "announcements": {
+      "title": "Pengumuman",
+      "description": "Pengumuman resmi pesantren",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "date": { "type": "string" },
+        "content": { "type": "string" },
+        "author": { "type": "string" },
+        "isImportant": { "type": "boolean" }
+      },
+      "rules": "Public read, write allowed"
+    },
+    "prayer_times": {
+      "title": "Waktu Shalat",
+      "description": "Jadwal waktu shalat pesantren",
+      "properties": {
+        "name": { "type": "string" },
+        "arabicName": { "type": "string" },
+        "time": { "type": "string" },
+        "icon": { "type": "string" },
+        "isNext": { "type": "boolean" },
+        "isPassed": { "type": "boolean" }
+      },
+      "rules": "Public read, write allowed"
+    },
+    "attendance": {
+      "title": "Absensi",
+      "description": "Data absensi kehadiran santri",
+      "properties": {
+        "id": { "type": "string" },
+        "santriName": { "type": "string" },
+        "nis": { "type": "string" },
+        "className": { "type": "string" },
+        "status": { "type": "string" },
+        "date": { "type": "string" },
+        "activityName": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "rules": "Public read, write allowed"
+    },
+    "notifications": {
+      "title": "Notifikasi",
+      "description": "Push notifikasi sistem dan agenda",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "read": { "type": "boolean" },
+        "category": { "type": "string" }
+      },
+      "rules": "Public read, write allowed"
+    }
+  }
+}
