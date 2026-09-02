@@ -89,7 +89,7 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T |
 // =============================================================================
 
 /**
- * Listener Real-time untuk Agenda (Polling tiap 10 detik dari MySQL Niagahoster)
+ * Listener Real-time untuk Agenda (Polling + Event Broadcast dari MySQL Niagahoster)
  */
 export function subscribeEvents(
   onUpdate: (events: AgendaEvent[]) => void,
@@ -103,7 +103,7 @@ export function subscribeEvents(
 
   const fetchRemote = async () => {
     const remoteData = await fetchApi<AgendaEvent[]>('events.php');
-    if (remoteData && Array.isArray(remoteData) && remoteData.length > 0) {
+    if (remoteData && Array.isArray(remoteData)) {
       setLocalCache(LOCAL_KEYS.EVENTS, remoteData);
       onUpdate(remoteData);
     }
@@ -112,9 +112,24 @@ export function subscribeEvents(
   // Fetch pertama kali
   fetchRemote();
 
-  // Polling tiap 10 detik agar pengunjung melihat update terbaru dari admin
-  const interval = setInterval(fetchRemote, 10000);
-  return () => clearInterval(interval);
+  // Event listener untuk update langsung saat pengguna melakukan aksi
+  const handleDataChange = () => {
+    fetchRemote();
+  };
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('agenda_data_changed', handleDataChange);
+  }
+
+  // Polling tiap 8 detik agar pengunjung melihat update terbaru dari admin
+  const interval = setInterval(fetchRemote, 8000);
+
+  return () => {
+    clearInterval(interval);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('agenda_data_changed', handleDataChange);
+    }
+  };
 }
 
 /**
@@ -231,6 +246,10 @@ export async function addEventToFirestore(event: AgendaEvent): Promise<void> {
     method: 'POST',
     body: JSON.stringify(event)
   });
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('agenda_data_changed'));
+  }
 }
 
 export async function batchAddEventsToFirestore(events: AgendaEvent[]): Promise<void> {
@@ -247,6 +266,10 @@ export async function batchAddEventsToFirestore(events: AgendaEvent[]): Promise<
       body: JSON.stringify(evt)
     });
   }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('agenda_data_changed'));
+  }
 }
 
 export async function updateEventInFirestore(
@@ -261,6 +284,10 @@ export async function updateEventInFirestore(
     method: 'PUT',
     body: JSON.stringify({ id, ...data })
   });
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('agenda_data_changed'));
+  }
 }
 
 export async function deleteEventFromFirestore(id: string): Promise<void> {
@@ -271,6 +298,10 @@ export async function deleteEventFromFirestore(id: string): Promise<void> {
   await fetchApi(`events.php?id=${encodeURIComponent(id)}`, {
     method: 'DELETE'
   });
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('agenda_data_changed'));
+  }
 }
 
 export async function addAnnouncementToFirestore(announcement: Announcement): Promise<void> {

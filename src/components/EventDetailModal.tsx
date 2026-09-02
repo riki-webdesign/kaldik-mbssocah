@@ -8,6 +8,7 @@ interface EventDetailModalProps {
   onDeleteEvent: (eventId: string) => void;
   onEditEvent?: (event: AgendaEvent) => void;
   userRole?: UserRole;
+  isLoggedIn?: boolean;
 }
 
 export const EventDetailModal: React.FC<EventDetailModalProps> = ({
@@ -16,11 +17,12 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
   onToggleDone,
   onDeleteEvent,
   onEditEvent,
-  userRole
+  userRole,
+  isLoggedIn = false
 }) => {
   if (!event) return null;
 
-  const isAdmin = userRole === 'admin_utama' || userRole === 'ustadz' || !userRole;
+  const isAdmin = Boolean(isLoggedIn) && (userRole === 'admin_utama' || userRole === 'ustadz');
 
   const handleDelete = () => {
     if (window.confirm(`Apakah Anda yakin ingin menghapus agenda "${event.title}"?`)) {

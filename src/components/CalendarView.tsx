@@ -14,6 +14,7 @@ interface CalendarViewProps {
   onOpenAddModal: () => void;
   searchQuery?: string;
   userRole?: string;
+  isLoggedIn?: boolean;
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
@@ -21,8 +22,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onSelectEvent,
   onOpenAddModal,
   searchQuery = '',
-  userRole
+  userRole,
+  isLoggedIn = false
 }) => {
+  const isAdmin = Boolean(isLoggedIn) && (userRole === 'admin_utama' || userRole === 'ustadz');
   const calendarRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const calendarInstanceRef = useRef<any>(null);
@@ -176,22 +179,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          {userRole === 'admin_utama' && (
+          {isAdmin && (
             <button
               onClick={onOpenAddModal}
               className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-sm transition-all flex items-center gap-1.5"
             >
               <i className="fa-solid fa-cloud-arrow-up"></i>
-              <span>Upload / Tambah Kalender</span>
-            </button>
-          )}
-          {userRole !== 'admin_utama' && (
-            <button
-              onClick={onOpenAddModal}
-              className="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs shadow-sm transition-colors flex items-center gap-1.5"
-            >
-              <i className="fa-solid fa-calendar-plus"></i>
-              <span>Agenda Baru</span>
+              <span>Upload / Tambah Agenda</span>
             </button>
           )}
         </div>

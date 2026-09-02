@@ -62,7 +62,7 @@ export default function App() {
     getLocalCache<{ isLoggedIn: boolean; role: UserRole; email: string } | null>(LOCAL_KEYS.AUTH_SESSION, null)
   );
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => Boolean(authSession?.isLoggedIn));
-  const [userRole, setUserRole] = useState<UserRole>(() => authSession?.role || 'admin_utama');
+  const [userRole, setUserRole] = useState<UserRole>(() => (authSession?.isLoggedIn ? authSession.role : 'santri'));
 
   // Navigation & View State
   const [currentView, setCurrentView] = useState<'home' | 'dashboard'>('home');
@@ -183,6 +183,11 @@ export default function App() {
 
   // Real-time Agenda Event Handlers with Firebase & Local Storage Fallback
   const handleAddEvent = async (newEvt: AgendaEvent) => {
+    if (!isLoggedIn || (userRole !== 'admin_utama' && userRole !== 'ustadz')) {
+      alert('Akses Ditolak: Hanya Admin yang dapat menambah agenda.');
+      return;
+    }
+
     setEvents((prev) => {
       const next = [newEvt, ...prev];
       setLocalCache(LOCAL_KEYS.EVENTS, next);
@@ -219,6 +224,11 @@ export default function App() {
   };
 
   const handleUpdateEvent = async (updatedEvt: AgendaEvent) => {
+    if (!isLoggedIn || (userRole !== 'admin_utama' && userRole !== 'ustadz')) {
+      alert('Akses Ditolak: Hanya Admin yang dapat mengubah agenda.');
+      return;
+    }
+
     setEvents((prev) => {
       const next = prev.map((e) => (e.id === updatedEvt.id ? updatedEvt : e));
       setLocalCache(LOCAL_KEYS.EVENTS, next);
@@ -260,6 +270,10 @@ export default function App() {
   };
 
   const handleOpenEditEvent = (event: AgendaEvent) => {
+    if (!isLoggedIn || (userRole !== 'admin_utama' && userRole !== 'ustadz')) {
+      setIsLoginModalOpen(true);
+      return;
+    }
     setSelectedEditEvent(event);
     setIsEditModalOpen(true);
     setSelectedDetailEvent(null);
@@ -381,6 +395,10 @@ export default function App() {
   };
 
   const handleToggleDone = async (eventId: string) => {
+    if (!isLoggedIn || (userRole !== 'admin_utama' && userRole !== 'ustadz')) {
+      alert('Akses Ditolak: Hanya Admin yang dapat memperbarui status agenda.');
+      return;
+    }
     const target = events.find((e) => e.id === eventId);
     if (!target) return;
     const newDoneState = !target.isDone;
@@ -399,6 +417,10 @@ export default function App() {
   };
 
   const handleDeleteEvent = async (eventId: string) => {
+    if (!isLoggedIn || (userRole !== 'admin_utama' && userRole !== 'ustadz')) {
+      alert('Akses Ditolak: Hanya Admin yang dapat menghapus agenda.');
+      return;
+    }
     setEvents((prev) => {
       const next = prev.filter((e) => e.id !== eventId);
       setLocalCache(LOCAL_KEYS.EVENTS, next);
@@ -556,6 +578,7 @@ export default function App() {
                       onOpenAddModal={() => setIsAddModalOpen(true)}
                       searchQuery={searchQuery}
                       userRole={userRole}
+                      isLoggedIn={isLoggedIn}
                     />
                   </div>
 
@@ -576,12 +599,14 @@ export default function App() {
                       onEditEvent={handleOpenEditEvent}
                       onDeleteEvent={handleDeleteEvent}
                       userRole={userRole}
+                      isLoggedIn={isLoggedIn}
                     />
 
                     {/* Pengumuman Widget */}
                     <AnnouncementCard
                       announcements={announcements}
                       userRole={userRole}
+                      isLoggedIn={isLoggedIn}
                       onAddAnnouncement={handleAddAnnouncement}
                       onDeleteAnnouncement={handleDeleteAnnouncement}
                       onUpdateAnnouncement={handleUpdateAnnouncement}
@@ -600,6 +625,7 @@ export default function App() {
                     onOpenAddModal={() => setIsAddModalOpen(true)}
                     searchQuery={searchQuery}
                     userRole={userRole}
+                    isLoggedIn={isLoggedIn}
                   />
                 </div>
               )}
@@ -616,6 +642,7 @@ export default function App() {
                       onEditEvent={handleOpenEditEvent}
                       onDeleteEvent={handleDeleteEvent}
                       userRole={userRole}
+                      isLoggedIn={isLoggedIn}
                     />
                   </div>
                   <div className="lg:col-span-5">
@@ -633,6 +660,7 @@ export default function App() {
                   <AnnouncementCard
                     announcements={announcements}
                     userRole={userRole}
+                    isLoggedIn={isLoggedIn}
                     onAddAnnouncement={handleAddAnnouncement}
                     onDeleteAnnouncement={handleDeleteAnnouncement}
                     onUpdateAnnouncement={handleUpdateAnnouncement}
@@ -652,6 +680,7 @@ export default function App() {
                   attendance={attendance}
                   onOpenAddModal={() => setIsAddModalOpen(true)}
                   userRole={userRole}
+                  isLoggedIn={isLoggedIn}
                   onDeleteEventFromDb={handleDeleteEvent}
                   onDeleteAnnouncementFromDb={handleDeleteAnnouncement}
                   onEditEvent={handleOpenEditEvent}
@@ -711,6 +740,7 @@ export default function App() {
         onDeleteEvent={handleDeleteEvent}
         onEditEvent={handleOpenEditEvent}
         userRole={userRole}
+        isLoggedIn={isLoggedIn}
       />
 
       {/* Pop Up Formulir Izin Pulang Santri */}

@@ -9,6 +9,7 @@ interface TodayAgendaCardProps {
   onEditEvent?: (event: AgendaEvent) => void;
   onDeleteEvent?: (eventId: string) => void;
   userRole?: UserRole;
+  isLoggedIn?: boolean;
 }
 
 export const TodayAgendaCard: React.FC<TodayAgendaCardProps> = ({
@@ -18,9 +19,10 @@ export const TodayAgendaCard: React.FC<TodayAgendaCardProps> = ({
   onOpenAddModal,
   onEditEvent,
   onDeleteEvent,
-  userRole
+  userRole,
+  isLoggedIn = false
 }) => {
-  const isAdmin = userRole === 'admin_utama' || userRole === 'ustadz' || !userRole;
+  const isAdmin = Boolean(isLoggedIn) && (userRole === 'admin_utama' || userRole === 'ustadz');
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm transition-colors space-y-4">

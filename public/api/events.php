@@ -31,6 +31,11 @@ switch ($method) {
         }
 
         try {
+            $endDate = (!empty($data['endDate'])) ? $data['endDate'] : null;
+            $startTime = (!empty($data['startTime'])) ? $data['startTime'] : null;
+            $endTime = (!empty($data['endTime'])) ? $data['endTime'] : null;
+            $speakerOrTeacher = (!empty($data['speakerOrTeacher'])) ? $data['speakerOrTeacher'] : null;
+
             $sql = "INSERT INTO events (id, title, category, startDate, endDate, startTime, endTime, location, description, speakerOrTeacher, isDone) 
                     VALUES (:id, :title, :category, :startDate, :endDate, :startTime, :endTime, :location, :description, :speakerOrTeacher, :isDone)
                     ON DUPLICATE KEY UPDATE 
@@ -44,12 +49,12 @@ switch ($method) {
                 ':title' => $data['title'],
                 ':category' => $data['category'] ?? 'formal',
                 ':startDate' => $data['startDate'],
-                ':endDate' => $data['endDate'] ?? null,
-                ':startTime' => $data['startTime'] ?? null,
-                ':endTime' => $data['endTime'] ?? null,
-                ':location' => $data['location'] ?? 'Pondok Pesantren Babusalam Socah',
+                ':endDate' => $endDate,
+                ':startTime' => $startTime,
+                ':endTime' => $endTime,
+                ':location' => !empty($data['location']) ? $data['location'] : 'Pondok Pesantren Babusalam Socah',
                 ':description' => $data['description'] ?? '',
-                ':speakerOrTeacher' => $data['speakerOrTeacher'] ?? null,
+                ':speakerOrTeacher' => $speakerOrTeacher,
                 ':isDone' => !empty($data['isDone']) ? 1 : 0
             ]);
 
@@ -78,7 +83,14 @@ switch ($method) {
             foreach ($allowed as $f) {
                 if (array_key_exists($f, $data)) {
                     $fields[] = "`$f` = :$f";
-                    $params[":$f"] = ($f === 'isDone') ? ($data[$f] ? 1 : 0) : $data[$f];
+                    $val = $data[$f];
+                    if (in_array($f, ['endDate', 'startTime', 'endTime', 'speakerOrTeacher']) && ($val === '' || $val === null)) {
+                        $val = null;
+                    }
+                    if ($f === 'isDone') {
+                        $val = !empty($val) ? 1 : 0;
+                    }
+                    $params[":$f"] = $val;
                 }
             }
 

@@ -11,6 +11,7 @@ interface RealtimeManagementProps {
   attendance: AttendanceRecord[];
   onOpenAddModal: () => void;
   userRole?: UserRole;
+  isLoggedIn?: boolean;
   onDeleteEventFromDb?: (id: string) => void;
   onDeleteAnnouncementFromDb?: (id: string) => void;
   onEditEvent?: (event: AgendaEvent) => void;
@@ -25,6 +26,7 @@ export const RealtimeManagement: React.FC<RealtimeManagementProps> = ({
   attendance,
   onOpenAddModal,
   userRole,
+  isLoggedIn = false,
   onDeleteEventFromDb,
   onDeleteAnnouncementFromDb,
   onEditEvent
@@ -32,12 +34,18 @@ export const RealtimeManagement: React.FC<RealtimeManagementProps> = ({
   const [activeTab, setActiveTab] = useState<'agendas' | 'announcements' | 'api-logs'>('agendas');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  const isAdmin = Boolean(isLoggedIn) && (userRole === 'admin_utama' || userRole === 'ustadz');
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
   const handleDeleteEvent = (id: string) => {
+    if (!isAdmin) {
+      alert('Akses Ditolak: Hanya Admin Utama yang dapat menghapus agenda.');
+      return;
+    }
     if (onDeleteEventFromDb) {
       onDeleteEventFromDb(id);
     } else {
@@ -47,6 +55,10 @@ export const RealtimeManagement: React.FC<RealtimeManagementProps> = ({
   };
 
   const handleDeleteAnnouncement = (id: string) => {
+    if (!isAdmin) {
+      alert('Akses Ditolak: Hanya Admin Utama yang dapat menghapus pengumuman.');
+      return;
+    }
     if (onDeleteAnnouncementFromDb) {
       onDeleteAnnouncementFromDb(id);
     } else {

@@ -4,6 +4,7 @@ import { Announcement, UserRole } from '../types';
 interface AnnouncementCardProps {
   announcements: Announcement[];
   userRole?: UserRole;
+  isLoggedIn?: boolean;
   onAddAnnouncement?: (anc: Announcement) => void;
   onDeleteAnnouncement?: (id: string) => void;
   onUpdateAnnouncement?: (anc: Announcement) => void;
@@ -12,6 +13,7 @@ interface AnnouncementCardProps {
 export const AnnouncementCard: React.FC<AnnouncementCardProps> = ({
   announcements,
   userRole,
+  isLoggedIn = false,
   onAddAnnouncement,
   onDeleteAnnouncement,
   onUpdateAnnouncement
@@ -34,7 +36,7 @@ export const AnnouncementCard: React.FC<AnnouncementCardProps> = ({
   const [editContent, setEditContent] = useState('');
   const [editIsImportant, setEditIsImportant] = useState(false);
 
-  const isAdmin = userRole === 'admin_utama' || userRole === 'ustadz' || !userRole;
+  const isAdmin = Boolean(isLoggedIn) && (userRole === 'admin_utama' || userRole === 'ustadz');
 
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();

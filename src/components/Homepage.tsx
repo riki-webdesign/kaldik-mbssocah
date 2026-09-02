@@ -38,7 +38,7 @@ export const Homepage: React.FC<HomepageProps> = ({
   onDeleteEvent,
   onOpenAddModal
 }) => {
-  const isAdmin = userRole === 'admin' || userRole === 'superadmin';
+  const isAdmin = Boolean(isLoggedIn) && (userRole === 'admin_utama' || userRole === 'ustadz');
   // Academic Year Months list (Tahun Pelajaran 2026/2027)
   const academicMonths: AcademicMonth[] = useMemo(() => [
     { name: 'Juli', year: 2026, monthIndex: 6, semester: 'ganjil', code: '2026-07' },
