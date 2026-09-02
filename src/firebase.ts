@@ -1,35 +1,19 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import {
-  getFirestore,
-  collection,
-  doc,
-  getDoc,
-  setDoc,
-  deleteDoc,
-  updateDoc,
-  onSnapshot,
-  getDocs,
-  writeBatch
-} from 'firebase/firestore';
 import { AgendaEvent, Announcement, PrayerTime, PushNotification, AttendanceRecord } from './types';
-import firebaseConfig from '../firebase-applet-config.json';
 
-// Initialize Firebase App
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+// =============================================================================
+// KONFIGURASI NATIVE REST API (NIAGAHOSTER MYSQL & PHP BACKEND)
+// =============================================================================
 
-// Initialize Firestore with custom databaseId if configured
-export const db = firebaseConfig.firestoreDatabaseId
-  ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
-  : getFirestore(app);
+// Base URL API: Menggunakan path relatif '/api' saat di hosting Niagahoster
+const getApiBaseUrl = (): string => {
+  if (typeof window !== 'undefined' && (window as any).VITE_API_URL) {
+    return (window as any).VITE_API_URL;
+  }
+  return '/api';
+};
 
-// Firestore Collections Names
-const EVENTS_COLLECTION = 'events';
-const ANNOUNCEMENTS_COLLECTION = 'announcements';
-const PRAYER_TIMES_COLLECTION = 'prayer_times';
-const NOTIFICATIONS_COLLECTION = 'notifications';
-const ATTENDANCE_COLLECTION = 'attendance';
-const SYSTEM_META_COLLECTION = 'system_meta';
-const SEED_META_DOC = 'seed_status';
+// Dummy db object untuk kompatibilitas jika ada komponen yang merujuk db
+export const db = {};
 
 // Local Storage Cache Keys
 export const LOCAL_KEYS = {
@@ -40,41 +24,6 @@ export const LOCAL_KEYS = {
   ATTENDANCE: 'kaldik_babusalam_attendance',
   AUTH_SESSION: 'kaldik_babusalam_auth_session'
 };
-
-// Queue for pending writes when offline/quota exhausted
-let pendingWrites: Array<() => Promise<void>> = [];
-let isRetrying = false;
-
-async function processPendingWrites() {
-  if (isRetrying || pendingWrites.length === 0) return;
-  isRetrying = true;
-  
-  const writesToProcess = [...pendingWrites];
-  pendingWrites = [];
-  
-  for (const write of writesToProcess) {
-    try {
-      await write();
-    } catch (err) {
-      console.warn('Retry failed, requeuing...', err);
-      pendingWrites.push(write);
-    }
-  }
-  isRetrying = false;
-}
-
-// Periodically attempt to clear the queue
-if (typeof window !== 'undefined') {
-  setInterval(processPendingWrites, 30000); // every 30 seconds
-  window.addEventListener('online', processPendingWrites);
-}
-
-export function handleQuotaError(err: unknown, retryAction?: () => Promise<void>): void {
-  console.warn('Firestore fallback invoked or offline mode active. Saving to local queue.', err);
-  if (retryAction) {
-    pendingWrites.push(retryAction);
-  }
-}
 
 // Local Storage Helper Functions
 export function getLocalCache<T>(key: string, fallback: T): T {
@@ -97,171 +46,180 @@ export function setLocalCache<T>(key: string, data: T): void {
   }
 }
 
+export function handleQuotaError(err: unknown): void {
+  console.warn('Network or API fallback active.', err);
+}
+
+// Helper HTTP Fetch dengan penanganan timeout & JSON parsing
+async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T | null> {
+  const baseUrl = getApiBaseUrl();
+  const url = `${baseUrl}/${endpoint}`;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 detik timeout
+    
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        ...(options?.headers || {})
+      }
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const json = await response.json();
+    if (json.status === 'success' && json.data !== undefined) {
+      return json.data as T;
+    }
+    return json as T;
+  } catch (err) {
+    // Mode offline / API belum ter-upload ke hosting
+    return null;
+  }
+}
+
+// =============================================================================
+// REAL-TIME SUBSCRIBERS (POLLING SINKRONISASI UNTUK NIAGAHOSTER)
+// =============================================================================
+
 /**
- * Realtime listener for Agenda Events from Firebase Cloud Firestore
+ * Listener Real-time untuk Agenda (Polling tiap 10 detik dari MySQL Niagahoster)
  */
 export function subscribeEvents(
   onUpdate: (events: AgendaEvent[]) => void,
   onError?: (err: Error) => void
 ) {
-  const q = collection(db, EVENTS_COLLECTION);
-  return onSnapshot(
-    q,
-    { includeMetadataChanges: true },
-    (snapshot) => {
-      const items: AgendaEvent[] = [];
-      snapshot.forEach((docSnap) => {
-        // Exclude purged items
-        if (docSnap.id !== 'kaldik-agu-3') {
-          items.push({ ...(docSnap.data() as AgendaEvent), id: docSnap.id });
-        }
-      });
-      items.sort((a, b) => (a.startDate > b.startDate ? 1 : -1));
-      setLocalCache(LOCAL_KEYS.EVENTS, items);
-      onUpdate(items);
-      
-      // If we receive successful updates, try to process pending writes
-      if (!snapshot.metadata.fromCache) {
-         processPendingWrites();
-      }
-    },
-    (err) => {
-      handleQuotaError(err);
-      const cached = getLocalCache<AgendaEvent[]>(LOCAL_KEYS.EVENTS, []);
-      if (cached.length > 0) {
-        onUpdate(cached);
-      }
-      if (onError) onError(err);
+  // 1. Tampilkan data dari Cache Lokal secara instan
+  const initialCache = getLocalCache<AgendaEvent[]>(LOCAL_KEYS.EVENTS, []);
+  if (initialCache.length > 0) {
+    onUpdate(initialCache);
+  }
+
+  const fetchRemote = async () => {
+    const remoteData = await fetchApi<AgendaEvent[]>('events.php');
+    if (remoteData && Array.isArray(remoteData) && remoteData.length > 0) {
+      setLocalCache(LOCAL_KEYS.EVENTS, remoteData);
+      onUpdate(remoteData);
     }
-  );
+  };
+
+  // Fetch pertama kali
+  fetchRemote();
+
+  // Polling tiap 10 detik agar pengunjung melihat update terbaru dari admin
+  const interval = setInterval(fetchRemote, 10000);
+  return () => clearInterval(interval);
 }
 
 /**
- * Realtime listener for Announcements from Firebase Cloud Firestore
+ * Listener Real-time untuk Pengumuman
  */
 export function subscribeAnnouncements(
   onUpdate: (announcements: Announcement[]) => void,
   onError?: (err: Error) => void
 ) {
-  const q = collection(db, ANNOUNCEMENTS_COLLECTION);
-  return onSnapshot(
-    q,
-    { includeMetadataChanges: true },
-    (snapshot) => {
-      const items: Announcement[] = [];
-      snapshot.forEach((docSnap) => {
-        items.push({ ...(docSnap.data() as Announcement), id: docSnap.id });
-      });
-      items.sort((a, b) => (a.date < b.date ? 1 : -1));
-      setLocalCache(LOCAL_KEYS.ANNOUNCEMENTS, items);
-      onUpdate(items);
-    },
-    (err) => {
-      handleQuotaError(err);
-      const cached = getLocalCache<Announcement[]>(LOCAL_KEYS.ANNOUNCEMENTS, []);
-      if (cached.length > 0) {
-        onUpdate(cached);
-      }
-      if (onError) onError(err);
+  const initialCache = getLocalCache<Announcement[]>(LOCAL_KEYS.ANNOUNCEMENTS, []);
+  if (initialCache.length > 0) {
+    onUpdate(initialCache);
+  }
+
+  const fetchRemote = async () => {
+    const remoteData = await fetchApi<Announcement[]>('announcements.php');
+    if (remoteData && Array.isArray(remoteData)) {
+      setLocalCache(LOCAL_KEYS.ANNOUNCEMENTS, remoteData);
+      onUpdate(remoteData);
     }
-  );
+  };
+
+  fetchRemote();
+  const interval = setInterval(fetchRemote, 10000);
+  return () => clearInterval(interval);
 }
 
 /**
- * Realtime listener for Prayer Times
+ * Listener Real-time untuk Jadwal Shalat
  */
 export function subscribePrayerTimes(
   onUpdate: (prayerTimes: PrayerTime[]) => void,
   onError?: (err: Error) => void
 ) {
-  const q = collection(db, PRAYER_TIMES_COLLECTION);
-  return onSnapshot(
-    q,
-    { includeMetadataChanges: true },
-    (snapshot) => {
-      const items: PrayerTime[] = [];
-      snapshot.forEach((docSnap) => {
-        items.push(docSnap.data() as PrayerTime);
-      });
-      if (items.length > 0) {
-        setLocalCache(LOCAL_KEYS.PRAYER_TIMES, items);
-        onUpdate(items);
-      }
-    },
-    (err) => {
-      handleQuotaError(err);
-      const cached = getLocalCache<PrayerTime[]>(LOCAL_KEYS.PRAYER_TIMES, []);
-      if (cached.length > 0) {
-        onUpdate(cached);
-      }
-      if (onError) onError(err);
+  const initialCache = getLocalCache<PrayerTime[]>(LOCAL_KEYS.PRAYER_TIMES, []);
+  if (initialCache.length > 0) {
+    onUpdate(initialCache);
+  }
+
+  const fetchRemote = async () => {
+    const remoteData = await fetchApi<PrayerTime[]>('prayer_times.php');
+    if (remoteData && Array.isArray(remoteData) && remoteData.length > 0) {
+      setLocalCache(LOCAL_KEYS.PRAYER_TIMES, remoteData);
+      onUpdate(remoteData);
     }
-  );
+  };
+
+  fetchRemote();
+  const interval = setInterval(fetchRemote, 30000);
+  return () => clearInterval(interval);
 }
 
 /**
- * Realtime listener for Push Notifications
+ * Listener Real-time untuk Push Notifications
  */
 export function subscribeNotifications(
   onUpdate: (notifs: PushNotification[]) => void,
   onError?: (err: Error) => void
 ) {
-  const q = collection(db, NOTIFICATIONS_COLLECTION);
-  return onSnapshot(
-    q,
-    { includeMetadataChanges: true },
-    (snapshot) => {
-      const items: PushNotification[] = [];
-      snapshot.forEach((docSnap) => {
-        items.push({ ...(docSnap.data() as PushNotification), id: docSnap.id });
-      });
-      setLocalCache(LOCAL_KEYS.NOTIFICATIONS, items);
-      onUpdate(items);
-    },
-    (err) => {
-      handleQuotaError(err);
-      const cached = getLocalCache<PushNotification[]>(LOCAL_KEYS.NOTIFICATIONS, []);
-      if (cached.length > 0) {
-        onUpdate(cached);
-      }
-      if (onError) onError(err);
+  const initialCache = getLocalCache<PushNotification[]>(LOCAL_KEYS.NOTIFICATIONS, []);
+  if (initialCache.length > 0) {
+    onUpdate(initialCache);
+  }
+
+  const fetchRemote = async () => {
+    const remoteData = await fetchApi<PushNotification[]>('notifications.php');
+    if (remoteData && Array.isArray(remoteData)) {
+      setLocalCache(LOCAL_KEYS.NOTIFICATIONS, remoteData);
+      onUpdate(remoteData);
     }
-  );
+  };
+
+  fetchRemote();
+  const interval = setInterval(fetchRemote, 10000);
+  return () => clearInterval(interval);
 }
 
 /**
- * Realtime listener for Attendance
+ * Listener Real-time untuk Absensi
  */
 export function subscribeAttendance(
   onUpdate: (records: AttendanceRecord[]) => void,
   onError?: (err: Error) => void
 ) {
-  const q = collection(db, ATTENDANCE_COLLECTION);
-  return onSnapshot(
-    q,
-    { includeMetadataChanges: true },
-    (snapshot) => {
-      const items: AttendanceRecord[] = [];
-      snapshot.forEach((docSnap) => {
-        items.push({ ...(docSnap.data() as AttendanceRecord), id: docSnap.id });
-      });
-      setLocalCache(LOCAL_KEYS.ATTENDANCE, items);
-      onUpdate(items);
-    },
-    (err) => {
-      handleQuotaError(err);
-      const cached = getLocalCache<AttendanceRecord[]>(LOCAL_KEYS.ATTENDANCE, []);
-      if (cached.length > 0) {
-        onUpdate(cached);
-      }
-      if (onError) onError(err);
+  const initialCache = getLocalCache<AttendanceRecord[]>(LOCAL_KEYS.ATTENDANCE, []);
+  if (initialCache.length > 0) {
+    onUpdate(initialCache);
+  }
+
+  const fetchRemote = async () => {
+    const remoteData = await fetchApi<AttendanceRecord[]>('attendance.php');
+    if (remoteData && Array.isArray(remoteData)) {
+      setLocalCache(LOCAL_KEYS.ATTENDANCE, remoteData);
+      onUpdate(remoteData);
     }
-  );
+  };
+
+  fetchRemote();
+  const interval = setInterval(fetchRemote, 15000);
+  return () => clearInterval(interval);
 }
 
-// ==========================================
-// MASTER ONLINE CRUD OPERATIONS (Firebase Firestore with Safe Fallback)
-// ==========================================
+// =============================================================================
+// REST CRUD OPERATIONS (KONEKSI KEDATABASE MYSQL NIAGAHOSTER)
+// =============================================================================
 
 export async function addEventToFirestore(event: AgendaEvent): Promise<void> {
   const currentEvents = getLocalCache<AgendaEvent[]>(LOCAL_KEYS.EVENTS, []);
@@ -269,16 +227,10 @@ export async function addEventToFirestore(event: AgendaEvent): Promise<void> {
   nextEvents.sort((a, b) => (a.startDate > b.startDate ? 1 : -1));
   setLocalCache(LOCAL_KEYS.EVENTS, nextEvents);
 
-  const performWrite = async () => {
-    const docRef = doc(db, EVENTS_COLLECTION, event.id);
-    await setDoc(docRef, event);
-  };
-
-  try {
-    await performWrite();
-  } catch (err) {
-    handleQuotaError(err, performWrite);
-  }
+  await fetchApi('events.php', {
+    method: 'POST',
+    body: JSON.stringify(event)
+  });
 }
 
 export async function batchAddEventsToFirestore(events: AgendaEvent[]): Promise<void> {
@@ -289,23 +241,11 @@ export async function batchAddEventsToFirestore(events: AgendaEvent[]): Promise<
   const merged = Array.from(map.values()).sort((a, b) => (a.startDate > b.startDate ? 1 : -1));
   setLocalCache(LOCAL_KEYS.EVENTS, merged);
 
-  const performWrite = async () => {
-    const chunkSize = 200;
-    for (let i = 0; i < events.length; i += chunkSize) {
-      const chunk = events.slice(i, i + chunkSize);
-      const batch = writeBatch(db);
-      chunk.forEach((evt) => {
-        const docRef = doc(db, EVENTS_COLLECTION, evt.id);
-        batch.set(docRef, evt);
-      });
-      await batch.commit();
-    }
-  };
-
-  try {
-    await performWrite();
-  } catch (err) {
-    handleQuotaError(err, performWrite);
+  for (const evt of events) {
+    await fetchApi('events.php', {
+      method: 'POST',
+      body: JSON.stringify(evt)
+    });
   }
 }
 
@@ -317,16 +257,10 @@ export async function updateEventInFirestore(
   const nextEvents = currentEvents.map((e) => (e.id === id ? { ...e, ...data } : e));
   setLocalCache(LOCAL_KEYS.EVENTS, nextEvents);
 
-  const performWrite = async () => {
-    const docRef = doc(db, EVENTS_COLLECTION, id);
-    await setDoc(docRef, data, { merge: true });
-  };
-
-  try {
-    await performWrite();
-  } catch (err) {
-    handleQuotaError(err, performWrite);
-  }
+  await fetchApi('events.php', {
+    method: 'PUT',
+    body: JSON.stringify({ id, ...data })
+  });
 }
 
 export async function deleteEventFromFirestore(id: string): Promise<void> {
@@ -334,16 +268,9 @@ export async function deleteEventFromFirestore(id: string): Promise<void> {
   const nextEvents = currentEvents.filter((e) => e.id !== id);
   setLocalCache(LOCAL_KEYS.EVENTS, nextEvents);
 
-  const performWrite = async () => {
-    const docRef = doc(db, EVENTS_COLLECTION, id);
-    await deleteDoc(docRef);
-  };
-
-  try {
-    await performWrite();
-  } catch (err) {
-    handleQuotaError(err, performWrite);
-  }
+  await fetchApi(`events.php?id=${encodeURIComponent(id)}`, {
+    method: 'DELETE'
+  });
 }
 
 export async function addAnnouncementToFirestore(announcement: Announcement): Promise<void> {
@@ -352,16 +279,10 @@ export async function addAnnouncementToFirestore(announcement: Announcement): Pr
   next.sort((a, b) => (a.date < b.date ? 1 : -1));
   setLocalCache(LOCAL_KEYS.ANNOUNCEMENTS, next);
 
-  const performWrite = async () => {
-    const docRef = doc(db, ANNOUNCEMENTS_COLLECTION, announcement.id);
-    await setDoc(docRef, announcement);
-  };
-
-  try {
-    await performWrite();
-  } catch (err) {
-    handleQuotaError(err, performWrite);
-  }
+  await fetchApi('announcements.php', {
+    method: 'POST',
+    body: JSON.stringify(announcement)
+  });
 }
 
 export async function updateAnnouncementInFirestore(
@@ -372,16 +293,10 @@ export async function updateAnnouncementInFirestore(
   const next = current.map((a) => (a.id === id ? { ...a, ...data } : a));
   setLocalCache(LOCAL_KEYS.ANNOUNCEMENTS, next);
 
-  const performWrite = async () => {
-    const docRef = doc(db, ANNOUNCEMENTS_COLLECTION, id);
-    await setDoc(docRef, data, { merge: true });
-  };
-
-  try {
-    await performWrite();
-  } catch (err) {
-    handleQuotaError(err, performWrite);
-  }
+  await fetchApi('announcements.php', {
+    method: 'POST',
+    body: JSON.stringify({ id, ...data })
+  });
 }
 
 export async function deleteAnnouncementFromFirestore(id: string): Promise<void> {
@@ -389,35 +304,18 @@ export async function deleteAnnouncementFromFirestore(id: string): Promise<void>
   const next = current.filter((a) => a.id !== id);
   setLocalCache(LOCAL_KEYS.ANNOUNCEMENTS, next);
 
-  const performWrite = async () => {
-    const docRef = doc(db, ANNOUNCEMENTS_COLLECTION, id);
-    await deleteDoc(docRef);
-  };
-
-  try {
-    await performWrite();
-  } catch (err) {
-    handleQuotaError(err, performWrite);
-  }
+  await fetchApi(`announcements.php?id=${encodeURIComponent(id)}`, {
+    method: 'DELETE'
+  });
 }
 
 export async function savePrayerTimesToFirestore(prayerTimes: PrayerTime[]): Promise<void> {
   setLocalCache(LOCAL_KEYS.PRAYER_TIMES, prayerTimes);
 
-  const performWrite = async () => {
-    const batch = writeBatch(db);
-    prayerTimes.forEach((pt, index) => {
-      const docRef = doc(db, PRAYER_TIMES_COLLECTION, `prayer-${index}`);
-      batch.set(docRef, pt);
-    });
-    await batch.commit();
-  };
-
-  try {
-    await performWrite();
-  } catch (err) {
-    handleQuotaError(err, performWrite);
-  }
+  await fetchApi('prayer_times.php', {
+    method: 'POST',
+    body: JSON.stringify(prayerTimes)
+  });
 }
 
 export async function addNotificationToFirestore(notif: PushNotification): Promise<void> {
@@ -425,16 +323,10 @@ export async function addNotificationToFirestore(notif: PushNotification): Promi
   const next = [notif, ...current.filter((n) => n.id !== notif.id)];
   setLocalCache(LOCAL_KEYS.NOTIFICATIONS, next);
 
-  const performWrite = async () => {
-    const docRef = doc(db, NOTIFICATIONS_COLLECTION, notif.id);
-    await setDoc(docRef, notif);
-  };
-
-  try {
-    await performWrite();
-  } catch (err) {
-    handleQuotaError(err, performWrite);
-  }
+  await fetchApi('notifications.php', {
+    method: 'POST',
+    body: JSON.stringify(notif)
+  });
 }
 
 export async function markAllNotificationsReadInFirestore(
@@ -443,22 +335,9 @@ export async function markAllNotificationsReadInFirestore(
   const next = notifications.map((n) => ({ ...n, read: true }));
   setLocalCache(LOCAL_KEYS.NOTIFICATIONS, next);
 
-  const performWrite = async () => {
-    const batch = writeBatch(db);
-    notifications.forEach((n) => {
-      if (!n.read) {
-        const docRef = doc(db, NOTIFICATIONS_COLLECTION, n.id);
-        batch.update(docRef, { read: true });
-      }
-    });
-    await batch.commit();
-  };
-
-  try {
-    await performWrite();
-  } catch (err) {
-    handleQuotaError(err, performWrite);
-  }
+  await fetchApi('notifications.php', {
+    method: 'PUT'
+  });
 }
 
 export async function addAttendanceRecordToFirestore(
@@ -468,78 +347,33 @@ export async function addAttendanceRecordToFirestore(
   const next = [record, ...current.filter((r) => r.id !== record.id)];
   setLocalCache(LOCAL_KEYS.ATTENDANCE, next);
 
-  const performWrite = async () => {
-    const docRef = doc(db, ATTENDANCE_COLLECTION, record.id);
-    await setDoc(docRef, record);
-  };
-
-  try {
-    await performWrite();
-  } catch (err) {
-    handleQuotaError(err, performWrite);
-  }
+  await fetchApi('attendance.php', {
+    method: 'POST',
+    body: JSON.stringify(record)
+  });
 }
 
-/**
- * Seed initial mock data into Firestore ONCE when first initialized.
- * Checks server metadata document in Firestore first.
- */
 export async function seedInitialFirestoreData(
   initialEvents: AgendaEvent[],
   initialAnnouncements: Announcement[],
   initialPrayerTimes: PrayerTime[],
   initialNotifications: PushNotification[]
 ): Promise<void> {
-  try {
-    const seedDocRef = doc(db, SYSTEM_META_COLLECTION, SEED_META_DOC);
-    const seedDocSnap = await getDoc(seedDocRef);
-
-    if (seedDocSnap.exists() && seedDocSnap.data()?.isSeeded) {
-      return;
-    }
-
-    const eventsSnapshot = await getDocs(collection(db, EVENTS_COLLECTION));
-    if (!eventsSnapshot.empty) {
-      await setDoc(seedDocRef, {
-        isSeeded: true,
-        seededAt: new Date().toISOString(),
-        version: '1.0.0'
-      });
-      return;
-    }
-
-    const batch = writeBatch(db);
-
-    initialEvents.forEach((evt) => {
-      if (evt.id !== 'kaldik-agu-3') {
-        const docRef = doc(db, EVENTS_COLLECTION, evt.id);
-        batch.set(docRef, evt);
-      }
-    });
-
-    initialAnnouncements.forEach((anc) => {
-      const docRef = doc(db, ANNOUNCEMENTS_COLLECTION, anc.id);
-      batch.set(docRef, anc);
-    });
-
-    initialPrayerTimes.forEach((pt, idx) => {
-      const docRef = doc(db, PRAYER_TIMES_COLLECTION, `prayer-${idx}`);
-      batch.set(docRef, pt);
-    });
-
-    initialNotifications.forEach((n) => {
-      const docRef = doc(db, NOTIFICATIONS_COLLECTION, n.id);
-      batch.set(docRef, n);
-    });
-
-    batch.set(seedDocRef, {
-      isSeeded: true,
-      seededAt: new Date().toISOString(),
-      version: '1.0.0'
-    });
-
-    await batch.commit();
-  } catch (err) {
-    handleQuotaError(err);
+  // Data dikirim secara lokal atau melalui import database.sql di phpMyAdmin
+  const events = getLocalCache<AgendaEvent[]>(LOCAL_KEYS.EVENTS, []);
+  if (events.length === 0) {
+    setLocalCache(LOCAL_KEYS.EVENTS, initialEvents);
+  }
+  const anncs = getLocalCache<Announcement[]>(LOCAL_KEYS.ANNOUNCEMENTS, []);
+  if (anncs.length === 0) {
+    setLocalCache(LOCAL_KEYS.ANNOUNCEMENTS, initialAnnouncements);
+  }
+  const prayers = getLocalCache<PrayerTime[]>(LOCAL_KEYS.PRAYER_TIMES, []);
+  if (prayers.length === 0) {
+    setLocalCache(LOCAL_KEYS.PRAYER_TIMES, initialPrayerTimes);
+  }
+  const notifs = getLocalCache<PushNotification[]>(LOCAL_KEYS.NOTIFICATIONS, []);
+  if (notifs.length === 0) {
+    setLocalCache(LOCAL_KEYS.NOTIFICATIONS, initialNotifications);
   }
 }
