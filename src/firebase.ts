@@ -237,15 +237,16 @@ export function subscribeAttendance(
 // =============================================================================
 
 export async function addEventToFirestore(event: AgendaEvent): Promise<void> {
+  const res = await fetchApi<any>('events.php', {
+    method: 'POST',
+    body: JSON.stringify(event)
+  });
+  if (res && res.status === 'error') throw new Error(res.message || 'Gagal menyimpan agenda');
+
   const currentEvents = getLocalCache<AgendaEvent[]>(LOCAL_KEYS.EVENTS, []);
   const nextEvents = [event, ...currentEvents.filter((e) => e.id !== event.id)];
   nextEvents.sort((a, b) => (a.startDate > b.startDate ? 1 : -1));
   setLocalCache(LOCAL_KEYS.EVENTS, nextEvents);
-
-  await fetchApi('events.php', {
-    method: 'POST',
-    body: JSON.stringify(event)
-  });
 
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('agenda_data_changed'));
@@ -253,19 +254,20 @@ export async function addEventToFirestore(event: AgendaEvent): Promise<void> {
 }
 
 export async function batchAddEventsToFirestore(events: AgendaEvent[]): Promise<void> {
+  for (const evt of events) {
+    const res = await fetchApi<any>('events.php', {
+      method: 'POST',
+      body: JSON.stringify(evt)
+    });
+    if (res && res.status === 'error') throw new Error(res.message || 'Gagal menyimpan batch agenda');
+  }
+
   const currentEvents = getLocalCache<AgendaEvent[]>(LOCAL_KEYS.EVENTS, []);
   const map = new Map<string, AgendaEvent>();
   currentEvents.forEach((e) => map.set(e.id, e));
   events.forEach((e) => map.set(e.id, e));
   const merged = Array.from(map.values()).sort((a, b) => (a.startDate > b.startDate ? 1 : -1));
   setLocalCache(LOCAL_KEYS.EVENTS, merged);
-
-  for (const evt of events) {
-    await fetchApi('events.php', {
-      method: 'POST',
-      body: JSON.stringify(evt)
-    });
-  }
 
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('agenda_data_changed'));
@@ -276,14 +278,15 @@ export async function updateEventInFirestore(
   id: string,
   data: Partial<AgendaEvent>
 ): Promise<void> {
-  const currentEvents = getLocalCache<AgendaEvent[]>(LOCAL_KEYS.EVENTS, []);
-  const nextEvents = currentEvents.map((e) => (e.id === id ? { ...e, ...data } : e));
-  setLocalCache(LOCAL_KEYS.EVENTS, nextEvents);
-
-  await fetchApi('events.php', {
+  const res = await fetchApi<any>('events.php', {
     method: 'PUT',
     body: JSON.stringify({ id, ...data })
   });
+  if (res && res.status === 'error') throw new Error(res.message || 'Gagal mengubah agenda');
+
+  const currentEvents = getLocalCache<AgendaEvent[]>(LOCAL_KEYS.EVENTS, []);
+  const nextEvents = currentEvents.map((e) => (e.id === id ? { ...e, ...data } : e));
+  setLocalCache(LOCAL_KEYS.EVENTS, nextEvents);
 
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('agenda_data_changed'));
@@ -291,13 +294,14 @@ export async function updateEventInFirestore(
 }
 
 export async function deleteEventFromFirestore(id: string): Promise<void> {
+  const res = await fetchApi<any>(`events.php?id=${encodeURIComponent(id)}`, {
+    method: 'DELETE'
+  });
+  if (res && res.status === 'error') throw new Error(res.message || 'Gagal menghapus agenda');
+
   const currentEvents = getLocalCache<AgendaEvent[]>(LOCAL_KEYS.EVENTS, []);
   const nextEvents = currentEvents.filter((e) => e.id !== id);
   setLocalCache(LOCAL_KEYS.EVENTS, nextEvents);
-
-  await fetchApi(`events.php?id=${encodeURIComponent(id)}`, {
-    method: 'DELETE'
-  });
 
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('agenda_data_changed'));

@@ -188,38 +188,39 @@ export default function App() {
       return;
     }
 
-    setEvents((prev) => {
-      const next = [newEvt, ...prev];
-      setLocalCache(LOCAL_KEYS.EVENTS, next);
-      return next;
-    });
-
     // Save to Firestore
     try {
       await addEventToFirestore(newEvt);
-    } catch (err) {
+      
+      setEvents((prev) => {
+        const next = [newEvt, ...prev];
+        setLocalCache(LOCAL_KEYS.EVENTS, next);
+        return next;
+      });
+
+      // Push automated notification
+      const newNotif: PushNotification = {
+        id: `notif-${Date.now()}`,
+        title: 'Agenda Baru Ditambahkan',
+        message: `"${newEvt.title}" dijadwalkan pada ${newEvt.startDate} pukul ${newEvt.startTime}`,
+        timestamp: 'Baru saja',
+        read: false,
+        category: newEvt.category
+      };
+      setNotifications((prev) => {
+        const next = [newNotif, ...prev];
+        setLocalCache(LOCAL_KEYS.NOTIFICATIONS, next);
+        return next;
+      });
+
+      try {
+        await addNotificationToFirestore(newNotif);
+      } catch (err) {
+        console.error('Error adding notif to Firestore:', err);
+      }
+    } catch (err: any) {
       console.error('Error adding event to Firestore:', err);
-    }
-
-    // Push automated notification
-    const newNotif: PushNotification = {
-      id: `notif-${Date.now()}`,
-      title: 'Agenda Baru Ditambahkan',
-      message: `"${newEvt.title}" dijadwalkan pada ${newEvt.startDate} pukul ${newEvt.startTime}`,
-      timestamp: 'Baru saja',
-      read: false,
-      category: newEvt.category
-    };
-    setNotifications((prev) => {
-      const next = [newNotif, ...prev];
-      setLocalCache(LOCAL_KEYS.NOTIFICATIONS, next);
-      return next;
-    });
-
-    try {
-      await addNotificationToFirestore(newNotif);
-    } catch (err) {
-      console.error('Error adding notif to Firestore:', err);
+      alert('Gagal menyimpan agenda ke database MySQL.\nPastikan pengaturan database di file config.php Anda sudah benar.\n\nDetail: ' + err.message);
     }
   };
 
@@ -314,36 +315,37 @@ export default function App() {
   };
 
   const handleBatchAddEvents = async (newEvts: AgendaEvent[]) => {
-    setEvents((prev) => {
-      const next = [...newEvts, ...prev];
-      setLocalCache(LOCAL_KEYS.EVENTS, next);
-      return next;
-    });
-
     try {
       await batchAddEventsToFirestore(newEvts);
-    } catch (err) {
-      console.error('Error batch adding to Firestore:', err);
-    }
+      
+      setEvents((prev) => {
+        const next = [...newEvts, ...prev];
+        setLocalCache(LOCAL_KEYS.EVENTS, next);
+        return next;
+      });
 
-    const newNotif: PushNotification = {
-      id: `notif-${Date.now()}`,
-      title: 'Import Kalender Massal Berhasil',
-      message: `Admin Utama mengimpor ${newEvts.length} agenda ke dalam Kalender Akademik.`,
-      timestamp: 'Baru saja',
-      read: false,
-      category: 'system'
-    };
-    setNotifications((prev) => {
-      const next = [newNotif, ...prev];
-      setLocalCache(LOCAL_KEYS.NOTIFICATIONS, next);
-      return next;
-    });
+      const newNotif: PushNotification = {
+        id: `notif-${Date.now()}`,
+        title: 'Import Kalender Massal Berhasil',
+        message: `Admin Utama mengimpor ${newEvts.length} agenda ke dalam Kalender Akademik.`,
+        timestamp: 'Baru saja',
+        read: false,
+        category: 'system'
+      };
+      setNotifications((prev) => {
+        const next = [newNotif, ...prev];
+        setLocalCache(LOCAL_KEYS.NOTIFICATIONS, next);
+        return next;
+      });
 
-    try {
-      await addNotificationToFirestore(newNotif);
-    } catch (err) {
-      console.error('Error adding notif to Firestore:', err);
+      try {
+        await addNotificationToFirestore(newNotif);
+      } catch (err) {
+        console.error('Error adding notif to server:', err);
+      }
+    } catch (err: any) {
+      console.error('Error batch adding to server:', err);
+      alert('Gagal mengimpor jadwal masal ke server.\n\nDetail: ' + err.message);
     }
   };
 
@@ -403,16 +405,17 @@ export default function App() {
     if (!target) return;
     const newDoneState = !target.isDone;
 
-    setEvents((prev) => {
-      const next = prev.map((e) => (e.id === eventId ? { ...e, isDone: newDoneState } : e));
-      setLocalCache(LOCAL_KEYS.EVENTS, next);
-      return next;
-    });
-
     try {
       await updateEventInFirestore(eventId, { isDone: newDoneState });
-    } catch (err) {
-      console.error('Error updating done status in Firestore:', err);
+      
+      setEvents((prev) => {
+        const next = prev.map((e) => (e.id === eventId ? { ...e, isDone: newDoneState } : e));
+        setLocalCache(LOCAL_KEYS.EVENTS, next);
+        return next;
+      });
+    } catch (err: any) {
+      console.error('Error updating done status:', err);
+      alert('Gagal mengubah status agenda.\n\nDetail: ' + err.message);
     }
   };
 
@@ -421,15 +424,18 @@ export default function App() {
       alert('Akses Ditolak: Hanya Admin yang dapat menghapus agenda.');
       return;
     }
-    setEvents((prev) => {
-      const next = prev.filter((e) => e.id !== eventId);
-      setLocalCache(LOCAL_KEYS.EVENTS, next);
-      return next;
-    });
+    
     try {
       await deleteEventFromFirestore(eventId);
-    } catch (err) {
-      console.error('Error deleting event from Firestore:', err);
+      
+      setEvents((prev) => {
+        const next = prev.filter((e) => e.id !== eventId);
+        setLocalCache(LOCAL_KEYS.EVENTS, next);
+        return next;
+      });
+    } catch (err: any) {
+      console.error('Error deleting event from server:', err);
+      alert('Gagal menghapus agenda dari server.\n\nDetail: ' + err.message);
     }
   };
 
