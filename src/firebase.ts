@@ -78,9 +78,9 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T |
       return json.data as T;
     }
     return json as T;
-  } catch (err) {
-    // Mode offline / API belum ter-upload ke hosting
-    return null;
+  } catch (err: any) {
+    console.error(`API Error (${endpoint}):`, err);
+    throw new Error(err.message);
   }
 }
 
