@@ -73,14 +73,20 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T |
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    const json = await response.json();
+    const text = await response.text();
+    if (text.trim().startsWith('<')) {
+      console.warn('API returned non-JSON/HTML: ' + endpoint);
+      return null;
+    }
+    const json = JSON.parse(text);
+
     if (json.status === 'success' && json.data !== undefined) {
       return json.data as T;
     }
     return json as T;
   } catch (err: any) {
-    console.error(`API Error (${endpoint}):`, err);
-    throw new Error(err.message);
+    console.error(`API Request Failed (${endpoint}):`, err.message);
+    return null;
   }
 }
 
@@ -241,7 +247,15 @@ export async function addEventToFirestore(event: AgendaEvent): Promise<void> {
     method: 'POST',
     body: JSON.stringify(event)
   });
-  if (res && res.status === 'error') throw new Error(res.message || 'Gagal menyimpan agenda');
+  if (res === null) {
+    if (typeof window !== 'undefined' && window.location.hostname.includes('run.app')) {
+      // Fallback for AI Studio Preview
+    } else {
+      throw new Error('Gagal menghubungi server database API (Response kosong/HTML).');
+    }
+  } else if (res.status === 'error') {
+    throw new Error(res.message || 'Gagal menyimpan agenda');
+  }
 
   const currentEvents = getLocalCache<AgendaEvent[]>(LOCAL_KEYS.EVENTS, []);
   const nextEvents = [event, ...currentEvents.filter((e) => e.id !== event.id)];
@@ -259,7 +273,15 @@ export async function batchAddEventsToFirestore(events: AgendaEvent[]): Promise<
       method: 'POST',
       body: JSON.stringify(evt)
     });
-    if (res && res.status === 'error') throw new Error(res.message || 'Gagal menyimpan batch agenda');
+    if (res === null) {
+    if (typeof window !== 'undefined' && window.location.hostname.includes('run.app')) {
+      // Fallback for AI Studio Preview
+    } else {
+      throw new Error('Gagal menghubungi server database API (Response kosong/HTML).');
+    }
+  } else if (res.status === 'error') {
+    throw new Error(res.message || 'Gagal menyimpan batch agenda');
+  }
   }
 
   const currentEvents = getLocalCache<AgendaEvent[]>(LOCAL_KEYS.EVENTS, []);
