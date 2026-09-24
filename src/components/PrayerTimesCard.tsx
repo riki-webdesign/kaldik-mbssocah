@@ -86,7 +86,7 @@ export const PrayerTimesCard: React.FC<PrayerTimesCardProps> = ({
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl overflow-hidden bg-white dark:bg-slate-800 p-0.5 border border-emerald-200 dark:border-emerald-500/30 shadow-sm flex items-center justify-center">
             <img
-              src="https://ik.imagekit.io/sekawanstd/MBS%20SOcah%20%20file/logo%20pondok%20MBS%20socah.png"
+              src="https://kaldik.babussalamsocah.com/Image/logo.png"
               alt="Logo MBS Socah"
               className="w-full h-full object-contain"
               referrerPolicy="no-referrer"

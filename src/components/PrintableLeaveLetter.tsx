@@ -121,7 +121,7 @@ export const PrintableLeaveLetter: React.FC<PrintableLeaveLetterProps> = ({
           {/* KOP SURAT RESMI PONDOK PESANTREN */}
           <div className="border-b-2 border-slate-800 pb-3 mb-5 text-center relative">
             <img
-              src="https://ik.imagekit.io/sekawanstd/MBS%20SOcah%20%20file/kop%20surat%20Pondok.png"
+              src="https://kaldik.babussalamsocah.com/Image/kop.png"
               alt="Kop Surat Pondok Pesantren Babussalam Socah"
               className="w-full h-auto max-h-32 object-contain mx-auto select-none"
               referrerPolicy="no-referrer"
@@ -277,10 +277,10 @@ export const PrintableLeaveLetter: React.FC<PrintableLeaveLetterProps> = ({
               <div className="relative">
                 <p className="font-semibold text-slate-700 mb-2">Mudir Ma'had Babussalam Socah,</p>
                 
-                {/* TTD + Stempel Asli Digital ImageKit */}
+                {/* TTD + Stempel Resmi Pondok Pesantren Babussalam Socah */}
                 <div className="h-16 flex items-center justify-center -my-1">
                   <img
-                    src="https://ik.imagekit.io/sekawanstd/MBS%20SOcah%20%20file/ttd%20+%20stempel.png"
+                    src="https://kaldik.babussalamsocah.com/Image/stempel.png"
                     alt="Tanda Tangan dan Stempel Mudir Ma'had Babussalam Socah"
                     className="h-16 w-auto max-w-[130px] object-contain select-none"
                     referrerPolicy="no-referrer"

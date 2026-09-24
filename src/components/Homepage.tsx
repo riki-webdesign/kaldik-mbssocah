@@ -458,7 +458,7 @@ export const Homepage: React.FC<HomepageProps> = ({
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl overflow-hidden bg-white dark:bg-slate-800 p-0.5 border border-emerald-200 dark:border-emerald-500/30 flex items-center justify-center shadow-xs">
                       <img
-                        src="https://ik.imagekit.io/sekawanstd/MBS%20SOcah%20%20file/logo%20pondok%20MBS%20socah.png"
+                        src="https://kaldik.babussalamsocah.com/Image/logo.png"
                         alt="Logo MBS Socah"
                         className="w-full h-full object-contain"
                         referrerPolicy="no-referrer"
@@ -1311,7 +1311,7 @@ export const Homepage: React.FC<HomepageProps> = ({
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center bg-white/80 dark:bg-slate-800/80 p-0.5 border border-slate-200/60 dark:border-slate-700/60 shadow-sm">
               <img
-                src="https://ik.imagekit.io/sekawanstd/MBS%20SOcah%20%20file/logo%20pondok%20MBS%20socah.png"
+                src="https://kaldik.babussalamsocah.com/Image/logo.png"
                 alt="Logo Pondok Pesantren Babussalam Socah"
                 className="w-full h-full object-contain"
                 referrerPolicy="no-referrer"

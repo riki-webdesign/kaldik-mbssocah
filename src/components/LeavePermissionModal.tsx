@@ -440,7 +440,7 @@ export const LeavePermissionModal: React.FC<LeavePermissionModalProps> = ({
 
         <div class="kop" style="border-bottom: 2px solid #1e293b; padding-bottom: 6px; margin-bottom: 12px; text-align: center;">
           <img 
-            src="https://ik.imagekit.io/sekawanstd/MBS%20SOcah%20%20file/kop%20surat%20Pondok.png" 
+            src="https://kaldik.babussalamsocah.com/Image/kop.png" 
             alt="Kop Surat Pondok Pesantren Babussalam Socah" 
             style="width: 100%; max-height: 105px; object-fit: contain;" 
           />
@@ -545,7 +545,7 @@ export const LeavePermissionModal: React.FC<LeavePermissionModalProps> = ({
                 <strong>Mudir Ma'had Babussalam Socah,</strong>
                 <div class="sig-space" style="display: flex; align-items: center; justify-content: center;">
                   <img 
-                    src="https://ik.imagekit.io/sekawanstd/MBS%20SOcah%20%20file/ttd%20+%20stempel.png" 
+                    src="https://kaldik.babussalamsocah.com/Image/stempel.png" 
                     alt="Tanda Tangan & Stempel Mudir" 
                     style="max-height: 52px; max-width: 140px; object-fit: contain;" 
                   />
